@@ -1,20 +1,97 @@
 # Reproducible Research: Peer Assessment 1
 
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
 
 ## Loading and preprocessing the data
 
+Assume that file 'activity.zip' in the current directory.
 
+```{r load_data, echo=TRUE}
+data <- read.csv(unz("activity.zip", "activity.csv"))
+data$date <- as.Date(data$date, format="%Y-%m-%d")
+```
+
+Check the data types:
+
+```{r str_data, echo=TRUE}
+str(data)
+```
 
 ## What is mean total number of steps taken per day?
 
+```{r hist_data, echo=TRUE, fig.width=10}
+data.total <- aggregate(steps ~ date, data, sum, na.rm=T)
 
+par(las=2, cex=0.9)
+barplot(data.total$steps, names.arg=format(data.total$date, "%m-%d"), border=F, main="Total number of steps taken each day")
+
+par(las=1, cex=1)
+hist(data.total$steps, breaks=20, col="gray", xlab="Steps count", main="Histogram of the total number of steps taken each day")
+
+mean.steps <- mean(data.total$steps, na.rm=T)
+median.steps <- median(data.total$steps, na.rm=T)
+```
+
+For total number of steps taken per day:
+- Mean: **`r paste(round(mean.steps, 2))`**
+- Median: **`r paste(round(median.steps, 2))`**
 
 ## What is the average daily activity pattern?
 
-
+```{r activity_data, echo=TRUE, fig.width=10}
+data.intervals <- aggregate(steps ~ interval, data, mean, na.rm=T)
+plot(data.intervals$interval, data.intervals$steps, type="l", xlab="Interval", ylab="Steps count", main="Average number of steps taken by interval")
+```
 
 ## Imputing missing values
 
+Dataset contain **`r nrow(data)`** rows, **`r sum(!complete.cases(data))`** of them contain missing values.
 
+To populate missing values, lets choose to replace them with the mean value at the same interval across days.
+
+Lets create a new dataset **date.complete** that is equal to the original dataset but with the missing data filled in.
+
+```{r imputing_data, echo=TRUE}
+data.complete <- data
+na.ind <- which(is.na(data.complete$steps), arr.ind=T)
+data.complete$steps[na.ind] <- data.intervals$steps[which(data.intervals$interval == data$interval[na.ind])]
+```
+
+Plot this dataset:
+
+```{r plot_complete_data, echo=TRUE, fig.width=10}
+data.complete.total <- aggregate(steps ~ date, data.complete, sum)
+
+par(las=2, cex=0.9)
+barplot(data.complete.total$steps, names.arg=format(data.complete.total$date, "%m-%d"), border=F, main="Total number of steps taken each day")
+
+par(las=1, cex=1)
+hist(data.complete.total$steps, breaks=20, col="gray", xlab="Steps count", main="Histogram of the total number of steps taken each day")
+
+mean.complete.steps <- mean(data.complete.total$steps)
+median.complete.steps <- median(data.complete.total$steps)
+```
+
+For total number of steps taken per day:
+- Mean: **`r paste(round(mean.complete.steps, 2))`**
+- Median: **`r paste(round(median.complete.steps, 2))`**
+
+Mean value remains unchanghed, the median value has shifted closer to the mean.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Lets split dataset into two subsets and plot them.
+
+```{r activity_week_data, echo=TRUE, fig.width=10}
+Sys.setlocale("LC_TIME", "English")  # Windows
+data.split <- split(data.complete, weekdays(data.complete$date) %in% c('Saturday','Sunday'))
+names(data.split) <- c("weekday", "weekend")
+
+data.split.intervals <- lapply(data.split, function(d) aggregate(steps ~ interval, d, mean))
+
+for (name in names(data.split.intervals)) {
+    plot(data.split.intervals[[name]]$interval, data.split.intervals[[name]]$steps, type="l", xlab="Interval", ylab="Steps count", main=paste("Average number of steps taken by interval in", name))
+}
+```
+
+We observe that there are a lot of activity at the beginig of the weekday, probably connected with the commuting to work or jogging, on weekend activity is more spread out.
